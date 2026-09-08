@@ -1,0 +1,821 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Диагностика ТМ</title>
+    <meta name="theme-color" content="#1a1a1a">
+    
+    <!-- Манифест теперь подключается как отдельный файл -->
+    <link rel="manifest" href="manifest.json">
+
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        :root {
+            --bg-primary: #121212;
+            --bg-secondary: #1a1a1a;
+            --bg-card: #1e1e1e;
+            --bg-card-hover: #282828;
+            --text-primary: #e8e8e8;
+            --text-secondary: #b0b0b0;
+            --accent: #ff8c00;
+            --accent-glow: rgba(255, 140, 0, 0.3);
+            --border-color: #2a2a2a;
+            --shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+            --radius: 16px;
+            --radius-sm: 10px;
+            /* Новый цвет для цифр — как у электронных часов */
+            --digital-green: #39ff14;
+            --digital-glow: rgba(57, 255, 20, 0.25);
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            min-height: 100dvh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            position: relative;
+        }
+
+        /* ===== СТАТИЧЕСКАЯ ЧАСТЬ ===== */
+        .static-section {
+            flex: 0 0 auto;
+            background: var(--bg-secondary);
+            padding: 12px 16px 10px 16px;
+            border-bottom: 1px solid var(--border-color);
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+            z-index: 10;
+            position: relative;
+        }
+
+        .table-container {
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            scrollbar-width: none;
+        }
+
+        .table-container::-webkit-scrollbar {
+            display: none;
+        }
+
+        .table-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 4px;
+            min-width: 340px;
+            font-size: 13px;
+        }
+
+        .table-grid .header-cell {
+            background: var(--bg-card);
+            padding: 6px 4px;
+            text-align: center;
+            font-weight: 600;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--text-secondary);
+            border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+            border-bottom: 2px solid var(--accent);
+        }
+
+        .table-grid .cell {
+            background: var(--bg-card);
+            padding: 7px 4px;
+            text-align: center;
+            border-radius: 4px;
+            font-weight: 500;
+            font-size: 13px;
+            transition: background 0.2s;
+        }
+
+        /* Сигналы светофора — цветные */
+        .table-grid .cell.signal {
+            color: #ff6b6b;
+            font-weight: 600;
+        }
+
+        .table-grid .cell.signal-green {
+            color: #51cf66;
+            font-weight: 600;
+        }
+
+        .table-grid .cell.signal-yellow {
+            color: #fcc419;
+            font-weight: 600;
+        }
+
+        .table-grid .cell.signal-white {
+            color: #e8e8e8;
+            font-weight: 600;
+        }
+
+        .table-grid .cell.accent {
+            color: var(--accent);
+            font-weight: 600;
+        }
+
+        /* ===== НОВЫЙ ЦВЕТ ДЛЯ СКОРОСТИ И РАССТОЯНИЯ ===== */
+        .table-grid .cell.digital {
+            color: var(--digital-green);
+            font-weight: 600;
+            text-shadow: 0 0 6px var(--digital-glow), 0 0 12px rgba(57, 255, 20, 0.1);
+        }
+
+        /* ===== ДИНАМИЧЕСКАЯ ЧАСТЬ ===== */
+        .dynamic-section {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            padding: 16px 16px 20px 16px;
+            overflow: hidden;
+            min-height: 0;
+        }
+
+        .progress-container {
+            flex: 0 0 auto;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .progress-bar-bg {
+            flex: 1;
+            height: 5px;
+            background: var(--bg-card);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .progress-bar-fill {
+            height: 100%;
+            width: 0%;
+            background: linear-gradient(90deg, var(--accent), #ffb347);
+            border-radius: 8px;
+            transition: width 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+
+        .progress-text {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            min-width: 44px;
+            text-align: right;
+        }
+
+        .step-card {
+            flex: 1;
+            background: var(--bg-secondary);
+            border-radius: var(--radius);
+            padding: 20px 18px;
+            border: 1px solid var(--border-color);
+            box-shadow: var(--shadow);
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto;
+            position: relative;
+            min-height: 0;
+        }
+
+        .step-number {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--accent);
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            margin-bottom: 8px;
+        }
+
+        .step-title {
+            font-size: 15px;
+            font-weight: 600;
+            line-height: 1.5;
+            margin-bottom: 10px;
+            color: var(--text-primary);
+        }
+
+        .step-description {
+            font-size: 14px;
+            line-height: 1.7;
+            color: var(--text-secondary);
+            flex: 1;
+            overflow-y: auto;
+            padding-right: 4px;
+        }
+
+        .step-description::-webkit-scrollbar {
+            width: 3px;
+        }
+        .step-description::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .step-description::-webkit-scrollbar-thumb {
+            background: var(--border-color);
+            border-radius: 8px;
+        }
+
+        /* ===== ТАЙМЕР (только визуальный) ===== */
+        .timer-container {
+            margin: 14px 0 10px 0;
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            background: var(--bg-card);
+            padding: 12px 16px;
+            border-radius: var(--radius-sm);
+            border: 1px solid var(--border-color);
+        }
+
+        .timer-display {
+            font-size: 28px;
+            font-weight: 700;
+            font-variant-numeric: tabular-nums;
+            color: var(--digital-green);
+            text-shadow: 0 0 10px var(--digital-glow);
+            min-width: 60px;
+            text-align: center;
+            letter-spacing: 1px;
+        }
+
+        .timer-label {
+            font-size: 13px;
+            color: var(--text-secondary);
+            flex: 1;
+        }
+
+        /* ===== КНОПКИ НАВИГАЦИИ ===== */
+        .nav-buttons {
+            flex: 0 0 auto;
+            display: grid;
+            grid-template-columns: 1fr 2fr;
+            gap: 10px;
+            margin-top: 14px;
+        }
+
+        .btn {
+            padding: 14px 16px;
+            border: none;
+            border-radius: var(--radius-sm);
+            font-weight: 700;
+            font-size: 16px;
+            cursor: pointer;
+            transition: all 0.2s;
+            min-height: 52px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            -webkit-user-select: none;
+            user-select: none;
+        }
+
+        .btn:active {
+            transform: scale(0.97);
+        }
+
+        .btn-back {
+            background: var(--bg-card);
+            color: var(--text-secondary);
+            border: 1px solid var(--border-color);
+        }
+        .btn-back:active {
+            background: var(--bg-card-hover);
+        }
+        .btn-back:disabled {
+            opacity: 0.3;
+            transform: none;
+        }
+
+        .btn-next {
+            background: linear-gradient(135deg, var(--accent), #e67e00);
+            color: #121212;
+            box-shadow: 0 4px 16px rgba(255, 140, 0, 0.25);
+        }
+        .btn-next:active {
+            box-shadow: 0 2px 8px rgba(255, 140, 0, 0.15);
+        }
+        .btn-next:disabled {
+            opacity: 0.4;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .btn-finish {
+            background: linear-gradient(135deg, #00b894, #00a381);
+            color: #121212;
+            box-shadow: 0 4px 16px rgba(0, 184, 148, 0.25);
+        }
+
+        /* ===== ФИНАЛЬНЫЙ ЭКРАН ===== */
+        .finish-screen {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            padding: 20px;
+            gap: 16px;
+        }
+
+        .finish-icon {
+            font-size: 56px;
+            line-height: 1;
+        }
+        .finish-title {
+            font-size: 22px;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+        .finish-sub {
+            font-size: 16px;
+            color: var(--text-secondary);
+            max-width: 320px;
+            line-height: 1.5;
+        }
+        .finish-reset {
+            margin-top: 20px;
+            background: var(--bg-card);
+            color: var(--text-secondary);
+            border: 1px solid var(--border-color);
+            padding: 14px 40px;
+            border-radius: var(--radius-sm);
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            min-height: 52px;
+        }
+        .finish-reset:active {
+            background: var(--bg-card-hover);
+        }
+
+        /* ===== АНИМАЦИЯ ===== */
+        .step-card {
+            animation: fadeSlide 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+
+        @keyframes fadeSlide {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* ===== PWA БАННЕР ===== */
+        .install-banner {
+            display: none;
+            background: var(--bg-card);
+            padding: 10px 16px;
+            border-radius: var(--radius-sm);
+            margin-bottom: 12px;
+            border: 1px solid var(--border-color);
+            align-items: center;
+            gap: 12px;
+            font-size: 13px;
+            color: var(--text-secondary);
+            flex-shrink: 0;
+        }
+        .install-banner.show {
+            display: flex;
+        }
+        .install-banner .btn-install {
+            background: var(--accent);
+            color: #121212;
+            border: none;
+            padding: 8px 18px;
+            border-radius: 8px;
+            font-weight: 700;
+            font-size: 13px;
+            cursor: pointer;
+            white-space: nowrap;
+            min-height: 38px;
+        }
+        .install-banner .btn-close {
+            background: transparent;
+            border: none;
+            color: var(--text-secondary);
+            font-size: 20px;
+            cursor: pointer;
+            padding: 0 4px;
+            line-height: 1;
+        }
+
+        /* ===== АДАПТИВ ===== */
+        @media (max-width: 380px) {
+            .static-section {
+                padding: 8px 10px 6px 10px;
+            }
+            .table-grid {
+                font-size: 11px;
+                min-width: 280px;
+                gap: 3px;
+            }
+            .table-grid .cell {
+                padding: 5px 2px;
+                font-size: 11px;
+            }
+            .table-grid .header-cell {
+                font-size: 9px;
+                padding: 4px 2px;
+            }
+            .step-card {
+                padding: 14px 12px;
+            }
+            .step-title {
+                font-size: 14px;
+            }
+            .step-description {
+                font-size: 13px;
+            }
+            .dynamic-section {
+                padding: 10px 10px 14px 10px;
+            }
+            .btn {
+                font-size: 14px;
+                min-height: 44px;
+                padding: 10px 12px;
+            }
+            .timer-display {
+                font-size: 22px;
+                min-width: 48px;
+            }
+        }
+
+        @media (min-width: 600px) {
+            body {
+                max-width: 420px;
+                margin: 0 auto;
+                border-left: 1px solid var(--border-color);
+                border-right: 1px solid var(--border-color);
+            }
+            .static-section {
+                padding: 16px 20px 12px 20px;
+            }
+            .dynamic-section {
+                padding: 20px 20px 24px 20px;
+            }
+            .step-card {
+                padding: 24px 22px;
+            }
+        }
+
+        @supports (padding: max(0px)) {
+            .static-section {
+                padding-top: max(12px, env(safe-area-inset-top));
+            }
+            .dynamic-section {
+                padding-bottom: max(20px, env(safe-area-inset-bottom));
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- ===== СТАТИЧЕСКАЯ ЧАСТЬ ===== -->
+    <div class="static-section">
+        <div class="table-container">
+            <div class="table-grid">
+                <!-- Пустые заголовки -->
+                <div class="header-cell"></div>
+                <div class="header-cell"></div>
+                <div class="header-cell"></div>
+                <div class="header-cell"></div>
+
+                <!-- КЖ -->
+                <div class="cell signal">КЖ</div>
+                <div class="cell accent">Подтяг</div>
+                <div class="cell digital">600</div>
+                <div class="cell digital">17</div>
+
+                <!-- Красный -->
+                <div class="cell signal">Красный</div>
+                <div class="cell accent">К20</div>
+                <div class="cell digital">300</div>
+                <div class="cell digital">17</div>
+
+                <!-- Зеленый -->
+                <div class="cell signal-green">Зеленый</div>
+                <div class="cell accent">К20</div>
+                <div class="cell digital">300</div>
+                <div class="cell digital">17</div>
+
+                <!-- Белый -->
+                <div class="cell signal-white">Белый</div>
+                <div class="cell accent">Отправление</div>
+                <div class="cell digital">500</div>
+                <div class="cell digital">52</div>
+
+                <!-- Желтый -->
+                <div class="cell signal-yellow">Желтый</div>
+                <div class="cell accent">ОС</div>
+                <div class="cell digital">600</div>
+                <div class="cell digital">62/82</div>
+
+                <!-- Белый -->
+                <div class="cell signal-white">Белый</div>
+                <div class="cell accent">Отправление</div>
+                <div class="cell digital">500</div>
+                <div class="cell digital">52</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== ДИНАМИЧЕСКАЯ ЧАСТЬ ===== -->
+    <div class="dynamic-section">
+
+        <div class="install-banner" id="installBanner">
+            <span style="flex:1;">📱 Установите как приложение</span>
+            <button class="btn-install" id="installBtn">Установить</button>
+            <button class="btn-close" id="installClose">✕</button>
+        </div>
+
+        <div class="progress-container">
+            <div class="progress-bar-bg">
+                <div class="progress-bar-fill" id="progressFill"></div>
+            </div>
+            <span class="progress-text" id="progressText">0%</span>
+        </div>
+
+        <div id="contentArea"></div>
+
+    </div>
+
+    <script>
+        // ============================================================
+        // ДАННЫЕ ШАГОВ
+        // ============================================================
+        const steps = [{
+            id: 1,
+            title: 'Проверка журнала',
+            description: 'Выполняем проверку журнала, интересуют замечания оставленные бригадами.'
+        }, {
+            id: 2,
+            title: 'Подготовка кабины',
+            description: 'Заходим в кабину, вешаем БВДУ, переключаем тумблер в одиночный, вставляем кассету, включаем САУТ.'
+        }, {
+            id: 3,
+            title: 'Служебное торможение',
+            description: 'Проверяем служебное торможение, смотрим давление в ТМ/УР — должно быть 5 атмосфер. Переключаем тумблер с АЛС в САУТ на пульте управления.'
+        }, {
+            id: 4,
+            title: 'Подключение ПД',
+            description: 'Подключаем ПД, заходим в приложение имитация скорости.'
+        }, {
+            id: 5,
+            title: 'Включение КЛУБ',
+            description: 'Включаем КЛУБ. На БВДУ включаем режим БПИ. На БИЛ УТ проверяем индикатор наличия кассеты. Проверяем грузовой/одиночный.'
+        }, {
+            id: 6,
+            title: 'Номер электронной карты',
+            description: 'Включаем ЭПК, поворачиваем ключ против часовой стрелки, вводим команду К10 — узнаем номер электронной карты. Актуальный номер указан на БВДУ сзади.'
+        }, {
+            id: 7,
+            title: 'Восстановление давления',
+            description: 'Восстанавливаем давление в ТМ/УР путем включения/выключения тумблера АЛС-САУТ на пульте управления.'
+        }, {
+            id: 8,
+            title: 'ТСКБМ и функция скатывания',
+            description: 'Включаем ТСКБМ. По истечении 1 минуты проверяем функцию скатывания. Вводим команду К1045. РБ не реагирует, РБС реагирует.',
+            timer: 60
+        }, {
+            id: 9,
+            title: 'Перешивка электронной карты',
+            description: 'Если электронная карта актуальная — отключаем БВДУ. Если не актуальная — ставим на перешивку (команда П0 или деактивация). Шьём на БВДУ в режиме БПИ: два раза вниз, ввод, вверх, ввод, вверх, ввод, влево, вниз, ввод.'
+        }, {
+            id: 10,
+            title: 'Проверка частот 25/75 Гц и ЕН',
+            description: 'Проверяем 2 круга 25 Гц, 2 круга 75 Гц и 1 круг ЕН. Частоты переключаем буквой F. На ЕН — К137 ввод 4 ввод. Выход: К137 ввод 0 ввод. При прогоне в ЕН переключить САУТ в режим АЛС (иначе сработает ПЭКМ).'
+        }, {
+            id: 11,
+            title: 'Экстренное торможение',
+            description: 'После желтого проверяем кнопку РПМ (должен переключиться на маневровый, загореться белый огонь). На ПД задаем 15 км/ч. Ждем экстренное торможение через ПЭКМ (снижение давления 0.6-0.7 со свистом ЭПК). Нажимаем "Отправление" — фактическая и допустимая уравниваются.'
+        }, {
+            id: 12,
+            title: 'Контроль тяги, КОН и ЭПК',
+            description: 'Штурвал вперед и в положение П. Ждем 76 секунд. По команде К71 пропадает признак 3, срыв ЭПК (7+1.5 сек). Выключаем ключом ЭПК, ждем 12±2 сек — срывает КОН. Штурвал в "0" — срыв прекращается.',
+            timer: 76
+        }, {
+            id: 13,
+            title: 'Команды К71, К81, К80, К517, К5',
+            description: 'К71 — постоянные признаки (123456789-В-).\nК81 — ТЦ.\nК80 — ТМ (завышаем давление краном в 1-ое положение).\nК517 — пакет по контрольной сумме.\nК5 — характеристики КЛУБ (тип, номер, бандажи, зубья, конфигурация, скорости, длина блок-участка).'
+        }, {
+            id: 14,
+            title: 'АЛСН, САУТ, база данных',
+            description: 'В режиме АЛСН на ПУ проверяем АЧХ, ОФМ, информацию САУТ (тип, номер, кабина, КЛУБ, АЛСН, КПД, ЕКС, режим). Если база не актуальна — прошиваем через работу с памятью. Считываем РПС.'
+        }];
+
+        // ============================================================
+        // СОСТОЯНИЕ
+        // ============================================================
+        let currentStep = 0;
+        let timerInterval = null;
+        let timerSeconds = 0;
+        let timerTotal = 0;
+        let isTimerRunning = false;
+
+        const contentArea = document.getElementById('contentArea');
+        const progressFill = document.getElementById('progressFill');
+        const progressText = document.getElementById('progressText');
+
+        // ============================================================
+        // ОТРИСОВКА
+        // ============================================================
+        function render() {
+            const total = steps.length;
+
+            if (currentStep >= total) {
+                renderFinish();
+                updateProgress(100);
+                return;
+            }
+
+            const step = steps[currentStep];
+            const progress = Math.round(((currentStep) / total) * 100);
+            updateProgress(progress);
+
+            const hasTimer = step.timer && step.timer > 0;
+
+            // Если это шаг с таймером и он ещё не запущен — запускаем
+            if (hasTimer && !isTimerRunning) {
+                timerTotal = step.timer;
+                timerSeconds = 0;
+                // Запускаем таймер
+                startTimer();
+            }
+
+            let html = `
+                <div class="step-card">
+                    <div class="step-number">Шаг ${currentStep + 1} из ${total}</div>
+                    <div class="step-title">${step.title}</div>
+                    <div class="step-description">${step.description.replace(/\n/g, '<br>')}</div>
+            `;
+
+            if (hasTimer) {
+                const remaining = Math.max(0, timerTotal - timerSeconds);
+                html += `
+                    <div class="timer-container">
+                        <span class="timer-display" id="timerDisplay">${formatTime(remaining)}</span>
+                        <span class="timer-label" id="timerLabel">${remaining > 0 ? 'Ожидание...' : 'Готово!'}</span>
+                    </div>
+                `;
+            }
+
+            const isFirst = currentStep === 0;
+            const isLast = currentStep === total - 1;
+
+            html += `
+                    <div class="nav-buttons">
+                        <button class="btn btn-back" id="backBtn" ${isFirst ? 'disabled' : ''}>
+                            ← Назад
+                        </button>
+                        <button class="btn ${isLast ? 'btn-finish' : 'btn-next'}" id="nextBtn">
+                            ${isLast ? '🏁 Завершить' : 'Выполнено →'}
+                        </button>
+                    </div>
+                </div>
+            `;
+
+            contentArea.innerHTML = html;
+
+            // Привязка событий
+            document.getElementById('backBtn').addEventListener('click', () => {
+                if (currentStep > 0) {
+                    clearTimer();
+                    currentStep--;
+                    render();
+                }
+            });
+
+            document.getElementById('nextBtn').addEventListener('click', () => {
+                clearTimer();
+                currentStep++;
+                render();
+            });
+        }
+
+        // ============================================================
+        // ТАЙМЕР (только визуальный, не блокирует кнопку)
+        // ============================================================
+        function startTimer() {
+            if (timerInterval) {
+                clearInterval(timerInterval);
+                timerInterval = null;
+            }
+
+            isTimerRunning = true;
+            timerInterval = setInterval(() => {
+                timerSeconds++;
+                const remaining = Math.max(0, timerTotal - timerSeconds);
+                const displayEl = document.getElementById('timerDisplay');
+                const labelEl = document.getElementById('timerLabel');
+
+                if (displayEl) {
+                    displayEl.textContent = formatTime(remaining);
+                }
+                if (labelEl) {
+                    labelEl.textContent = remaining > 0 ? 'Ожидание...' : 'Готово!';
+                }
+
+                if (remaining <= 0) {
+                    clearTimer();
+                }
+            }, 1000);
+        }
+
+        function clearTimer() {
+            if (timerInterval) {
+                clearInterval(timerInterval);
+                timerInterval = null;
+            }
+            isTimerRunning = false;
+        }
+
+        function renderFinish() {
+            contentArea.innerHTML = `
+                <div class="step-card">
+                    <div class="finish-screen">
+                        <div class="finish-icon">✅</div>
+                        <div class="finish-title">Диагностика завершена!</div>
+                        <div class="finish-sub">Не забудь заполнить журнал.</div>
+                        <button class="finish-reset" id="resetBtn">🔄 Пройти заново</button>
+                    </div>
+                </div>
+            `;
+            document.getElementById('resetBtn').addEventListener('click', () => {
+                clearTimer();
+                currentStep = 0;
+                timerSeconds = 0;
+                timerTotal = 0;
+                render();
+            });
+            updateProgress(100);
+        }
+
+        function updateProgress(value) {
+            progressFill.style.width = value + '%';
+            progressText.textContent = value + '%';
+        }
+
+        function formatTime(sec) {
+            const m = String(Math.floor(sec / 60)).padStart(2, '0');
+            const s = String(sec % 60).padStart(2, '0');
+            return `${m}:${s}`;
+        }
+
+        // ============================================================
+        // PWA УСТАНОВКА
+        // ============================================================
+        let deferredPrompt = null;
+        const installBanner = document.getElementById('installBanner');
+
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            deferredPrompt = e;
+            installBanner.classList.add('show');
+        });
+
+        document.getElementById('installBtn').addEventListener('click', async () => {
+            if (deferredPrompt) {
+                deferredPrompt.prompt();
+                const result = await deferredPrompt.userChoice;
+                if (result.outcome === 'accepted') {
+                    installBanner.classList.remove('show');
+                }
+                deferredPrompt = null;
+            }
+        });
+
+        document.getElementById('installClose').addEventListener('click', () => {
+            installBanner.classList.remove('show');
+        });
+
+        // Регистрация Service Worker
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('sw.js')
+                .then(() => console.log('✅ SW зарегистрирован'))
+                .catch(() => console.log('⚠️ SW не зарегистрирован'));
+        }
+
+        // ============================================================
+        // СТАРТ
+        // ============================================================
+        render();
+        console.log('🚂 Диагностика ТМ загружена');
+    </script>
+</body>
+</html>
