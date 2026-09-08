@@ -1,6 +1,6 @@
 {
-  "name": "Диагностика ТМ",
-  "short_name": "Диагностика ТМ",
+  "name": "ТРПУ-17",
+  "short_name": "ТРПУ-17",
   "start_url": ".",
   "display": "standalone",
   "background_color": "#1a1a1a",
